@@ -1,10 +1,9 @@
-declare class QuetzalBaseClass {};
+declare class QuetzalBaseClass {}
 
 export function QuetzalExtElement(constructor: {
-    new(): HTMLElement,
-    prototype: HTMLElement
+  new (): HTMLElement;
+  prototype: HTMLElement;
 }) {
-    return class extends constructor implements QuetzalBaseClass {
-        
-    }
+  return class extends constructor implements QuetzalBaseClass {
+  };
 }

@@ -6,5 +6,4 @@ export const run = new Command()
   });
 
 function runCommand(options: any, args: string[]) {
-  
 }

@@ -9,9 +9,7 @@ const main = new Command()
   .description("Command Line Tool for the Quetzal Framework/Library (in Deno)")
   .command("run", run)
   .command("build", build)
-  .default("run")
-  ;
+  .default("run");
 
 await main
   .parse(Deno.args);
-
