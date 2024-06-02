@@ -11,7 +11,7 @@ import denoOptions from "./config/deno.js";
 import { rollup } from "npm:rollup";
 import { readFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { bundle as denoBundle } from "jsr:@deno/emit";
+import { bundle as denoBundle, transpile as denoTranspile } from "jsr:@deno/emit";
 
 import { BundleOptions } from "./types/options.ts";
 
@@ -31,6 +31,18 @@ export async function bundle(options: BundleOptions) {
 async function devBundle(options: BundleOptions): Promise<string> {
   if (options.deno && options.deno.useDeno) {
     const { code } = await denoBundle(await readFileSync(options.entry, { encoding: "utf8" }));
+    return code;
+  } else {
+    // invoke swc compiler
+    options.swcOptions = { ...options.swcOptions, ...swcOptions };
+    const output = await swc.transformFile(options.entry, swcOptions);
+    return output.code;
+  }
+}
+
+async function devTranspile(options: BundleOptions) {
+  if (options.deno && options.deno.useDeno) {
+    const code = await denoTranspile(await readFileSync(options.entry, { encoding: "utf8" }));
     return code;
   } else {
     // invoke swc compiler

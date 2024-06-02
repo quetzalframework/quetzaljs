@@ -9,6 +9,7 @@ interface ServeOptions {
     port: string | undefined;
     host: string | undefined;
     dir: string;
+    dev: boolean;
     deno: {
         useDeno: boolean | undefined;
     } | undefined;
@@ -31,7 +32,7 @@ async function denoServer(options: ServeOptions) {
 }
 
 
-async function genericServer(options: ServeOptions) {
+function genericServer(options: ServeOptions) {
     const app = express();
     const port = 3000;
 
