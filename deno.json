@@ -1,5 +1,6 @@
 {
   "tasks": {
-    "dev": "deno run --watch main.ts"
-  }
+    "cli": "deno run -A ./packages/quetzal-cli/main.ts"
+  },
+  "importMap": "./.rexmap.json"
 }

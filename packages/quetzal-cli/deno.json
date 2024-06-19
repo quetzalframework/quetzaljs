@@ -1,0 +1,6 @@
+{
+  "name": "@quetzal/cli",
+  "imports": {
+    "quetzal/": "../quetzaljs/"
+  }
+}
