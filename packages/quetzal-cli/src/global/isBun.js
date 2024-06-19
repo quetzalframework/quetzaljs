@@ -1,1 +1,1 @@
-export default typeof Bun !== 'undefined';
+export default typeof Bun !== "undefined";

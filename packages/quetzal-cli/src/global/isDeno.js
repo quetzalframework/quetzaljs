@@ -1,1 +1,1 @@
-export default typeof Deno !== 'undefined';
+export default typeof Deno !== "undefined";

@@ -5,16 +5,19 @@
 // For production we will use swc and rollup to bundle and minify the application for deployment
 // Code splitting will also be performed
 import * as swc from "npm:@swc/core";
+//@deno-types="./config/swc.d.ts"
 import swcOptions from "./config/swc.js";
 import rollupOptions from "./config/rollup.js";
 import denoOptions from "./config/deno.js";
 import { rollup } from "npm:rollup";
 import { readFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { bundle as denoBundle, transpile as denoTranspile } from "jsr:@deno/emit";
+import {
+  bundle as denoBundle,
+  transpile as denoTranspile,
+} from "jsr:@deno/emit";
 
 import { BundleOptions } from "./types/options.ts";
-
 
 export async function bundle(options: BundleOptions) {
   if (options.mode === "development") {
@@ -30,24 +33,32 @@ export async function bundle(options: BundleOptions) {
  */
 async function devBundle(options: BundleOptions): Promise<string> {
   if (options.deno && options.deno.useDeno) {
-    const { code } = await denoBundle(await readFileSync(options.entry, { encoding: "utf8" }));
+    const { code } = await denoBundle(
+      await readFileSync(options.entry, { encoding: "utf8" }),
+    );
     return code;
   } else {
     // invoke swc compiler
-    options.swcOptions = { ...options.swcOptions, ...swcOptions };
-    const output = await swc.transformFile(options.entry, swcOptions);
+    options.swcOptions = { ...options.swcOptions, ...swcOptions(options) };
+    const output = await swc.transformFile(options.entry, options.swcOptions);
     return output.code;
   }
 }
 
-async function devTranspile(options: BundleOptions) {
+export async function devTranspile(
+  options: BundleOptions,
+): Promise<string | Map<string, string>> {
   if (options.deno && options.deno.useDeno) {
-    const code = await denoTranspile(await readFileSync(options.entry, { encoding: "utf8" }));
+    console.log("Deno used:", options.entry);
+    const code = await denoTranspile(
+      await readFileSync(options.entry, { encoding: "utf8" }),
+    );
     return code;
   } else {
+    console.log("SWC Used:", options.entry);
     // invoke swc compiler
-    options.swcOptions = { ...options.swcOptions, ...swcOptions };
-    const output = await swc.transformFile(options.entry, swcOptions);
+    options.swcOptions = { ...options.swcOptions, ...swcOptions(options) };
+    const output = await swc.transformFile(options.entry, options.swcOptions);
     return output.code;
   }
 }
@@ -64,7 +75,7 @@ async function prodBundle(options: BundleOptions) {
     };
   } else {
     // use swc plugin for transpiling
-    options.swcOptions = { ...options.swcOptions, ...swcOptions };
+    options.swcOptions = { ...options.swcOptions, ...swcOptions(options) };
     options.rollupOptions = {
       ...options.rollupOptions,
       ...rollupOptions(options.swcOptions),
@@ -72,11 +83,10 @@ async function prodBundle(options: BundleOptions) {
   }
   const bundle = await rollup(options.rollupOptions);
   const { output } = await bundle.generate({
-    dir: dirname()
+    dir: dirname(),
   });
 
   for (const chunkOrAsset of output) {
-
   }
 
   if (bundle) {
