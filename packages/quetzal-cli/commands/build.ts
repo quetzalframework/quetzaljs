@@ -16,8 +16,7 @@ async function buildCommand(options: void, args: [(string | undefined)?]) {
   const cwd = Deno.cwd();
 
   // load quetzal config
-  let appConfig;
-  appConfig = await getConfiguration(options, args, cwd, appConfig);
+  const appConfig = await getConfiguration(options, args, cwd);
 
   // get entry file
   const entry = getEntryFile(cwd, appConfig);

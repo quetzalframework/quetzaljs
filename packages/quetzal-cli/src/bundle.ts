@@ -92,7 +92,6 @@ export async function devTranspileCode(
 }
 
 export async function devBundleCode(
-  options: BundleOptions,
   entry: string,
   tcOptions: {
     url: string
