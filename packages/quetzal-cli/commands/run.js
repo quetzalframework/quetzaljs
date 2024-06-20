@@ -19,7 +19,7 @@ export const run = new Command()
 
 /**
  * The Run Command
- * @param options 
+ * @param options
  * @param {Array<string | undefined>} args
  */
 async function runCommand(options, args) {
@@ -48,10 +48,10 @@ async function runCommand(options, args) {
     onUpdate({ _oldConfig, newConfig, getDiff }) {
       const diff = getDiff();
       appConfig = newConfig.config ?? generateConfig(options, args, cwd);
-      console.log("Config updated:\n" + diff.map(i => i.toJSON()).join("\n"));
+      console.log("Config updated:\n" + diff.map((i) => i.toJSON()).join("\n"));
 
       devServer.close(function () {
-        console.log("Reloading Server....")
+        console.log("Reloading Server....");
       });
 
       devServer = createDevServer(cwd, appConfig);
@@ -77,7 +77,7 @@ function createDevServer(cwd, appConfig) {
   const bundleOptions = createBundleOptions(
     appConfig,
     entry,
-    true
+    true,
   );
 
   const serveOptions = createServerOptions(appConfig, cwd);

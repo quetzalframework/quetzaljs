@@ -53,15 +53,15 @@ export async function devTranspile(
     console.log("Deno used:", options.entry);
     const code = await denoTranspile(options.entry);
     return Resolver.resolve(Array.from(code.values())[0], {
-      url: '/_dev/packages',
-      deno: true
+      url: "/_dev/packages",
+      deno: true,
     });
   } else {
     console.log("SWC Used:", options.entry);
     // invoke swc compiler
     options.swcOptions = { ...options.swcOptions, ...swcOptions(options) };
     const source = Resolver.resolve(Deno.readTextFileSync(options.entry), {
-      url: '/_dev/packages',
+      url: "/_dev/packages",
     });
     const output = await swc.transform(source, options.swcOptions);
     return output.code;
@@ -72,44 +72,44 @@ export async function devTranspileCode(
   options: BundleOptions,
   entry: string,
   tcOptions: {
-    url: string
-  }
+    url: string;
+  },
 ): Promise<string> {
-    if (!entry) throw new Error("Entry must be specified when running this");
-    console.log("Deno used:", entry);
-    const code = await denoTranspile(entry, {
-      importMap: {
-        baseUrl: '.',
-        imports: {
-          '.': tcOptions.url
-        }
-      }
-    });
-    return Resolver.resolve(Array.from(code.values())[0], {
-      url: '/_dev/packages',
-      deno: true
-    });
+  if (!entry) throw new Error("Entry must be specified when running this");
+  console.log("Deno used:", entry);
+  const code = await denoTranspile(entry, {
+    importMap: {
+      baseUrl: ".",
+      imports: {
+        ".": tcOptions.url,
+      },
+    },
+  });
+  return Resolver.resolve(Array.from(code.values())[0], {
+    url: "/_dev/packages",
+    deno: true,
+  });
 }
 
 export async function devBundleCode(
   entry: string,
   tcOptions: {
-    url: string
-  }
+    url: string;
+  },
 ): Promise<string> {
   if (!entry) throw new Error("Entry must be specified when running this");
   console.log("Deno used:", entry);
   const code = await denoBundle(entry, {
     importMap: {
-      baseUrl: '.',
+      baseUrl: ".",
       imports: {
-        '.': tcOptions.url
-      }
-    }
+        ".": tcOptions.url,
+      },
+    },
   });
   return Resolver.resolve(code.code, {
-    url: '/_dev/packages',
-    deno: true
+    url: "/_dev/packages",
+    deno: true,
   });
 }
 

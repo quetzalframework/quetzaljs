@@ -4,7 +4,6 @@
  * @typedef {import("./types/Server.ts").QServer} QServer
  */
 
-
 import isDeno from "./global/isDeno.js";
 import { PlatformError } from "./errors/PlatformError.ts";
 import { join } from "node:path";
@@ -15,8 +14,8 @@ import express from "npm:express";
 
 /**
  * Creates a server for the given Quetzal Application
- * 
- * Depending on whether the settings have been configured for Deno or 
+ *
+ * Depending on whether the settings have been configured for Deno or
  * @param {ServerOptions} options The Server Options to configure the server with
  * @param {BundleOptions} [bundleOptions] Optional Bundle Options to configure bundling and transpilation of the application and its dependencies
  * @returns {import("npm:@types/express").Express | QServer} The built server
@@ -82,7 +81,7 @@ function denoServer(options, bundleOptions) {
           },
         );
       }
-      // transpile code 
+      // transpile code
       const code = await devTranspile(
         bundleOptions ?? {
           entry: filePath,
@@ -124,8 +123,8 @@ function denoServer(options, bundleOptions) {
         close: (onEnd) => {
           server.shutdown();
           onEnd();
-        } 
-      }
+        },
+      };
     },
   };
 }
@@ -146,15 +145,16 @@ function genericServer(options, bundleOptions) {
   app.use(express.json());
 
   // index html file
-  app.get('/', (_req, res) => {
+  app.get("/", (_req, res) => {
     res.setHeader("Content-Type", "text/html");
-    res.send(Deno.readTextFileSync(join(options.dir, "index.html")))
+    res.send(Deno.readTextFileSync(join(options.dir, "index.html")));
   });
 
   // jsr package serving/configuration
-  app.get('/_dev/packages/jsr/*', async (req, res) => {
+  app.get("/_dev/packages/jsr/*", async (req, res) => {
     // semver regex
-    const semverRegex = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
+    const semverRegex =
+      /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
 
     /** Get the path segments @type {string} */
     let path = req.params[0];
@@ -166,52 +166,66 @@ function genericServer(options, bundleOptions) {
     /** Base url for the `fetchFinalCode` function @type {string} */
     let baseRequestUrl;
 
-    let requestUrl = `https://jsr.io/${path}`
+    let requestUrl = `https://jsr.io/${path}`;
 
     // path already complete then fetch and send
     if (pathSegments.length >= 4) {
       if (semverRegex.test(pathSegments[2])) {
-        await fetchFinalCode(requestUrl, `https://jsr.io/${pathSegments[0]}/${pathSegments[1]}/${pathSegments[2]}`);
+        await fetchFinalCode(
+          requestUrl,
+          `https://jsr.io/${pathSegments[0]}/${pathSegments[1]}/${
+            pathSegments[2]
+          }`,
+        );
       } else {
-        const baseTempRequestUrl = `https://jsr.io/${pathSegments[0]}/${pathSegments[1]}`
+        const baseTempRequestUrl = `https://jsr.io/${pathSegments[0]}/${
+          pathSegments[1]
+        }`;
         const tempMetaRequestUrl = baseTempRequestUrl + "/meta.json";
-        const latest = getSemver(await fetch(tempMetaRequestUrl).then(async e => await e.json()));
-        const tempRequestUrl = baseTempRequestUrl + `/${latest}/${pathSegments.slice(2).join('/')}`;
+        const latest = getSemver(
+          await fetch(tempMetaRequestUrl).then(async (e) => await e.json()),
+        );
+        const tempRequestUrl = baseTempRequestUrl +
+          `/${latest}/${pathSegments.slice(2).join("/")}`;
         await fetchFinalCode(tempRequestUrl, baseTempRequestUrl);
       }
       console.log("Bypassed");
-      
+
       return;
     }
 
     if (pathSegments.length > 2) {
       // handle version and path
-      
+
       if (semverRegex.test(pathSegments[2])) {
         // version present
-        // denote 
-        path = pathSegments.slice(0, 3).join('/');
-        extraPath = pathSegments.slice(3).join('/');
+        // denote
+        path = pathSegments.slice(0, 3).join("/");
+        extraPath = pathSegments.slice(3).join("/");
         console.log(extraPath);
         useUnderscore = true;
       } else {
         // no version, just extra path
-        path = pathSegments.slice(0, 2).join('/');
-        extraPath = pathSegments.slice(2).join('/');
+        path = pathSegments.slice(0, 2).join("/");
+        extraPath = pathSegments.slice(2).join("/");
         console.log(extraPath);
       }
     }
     // perform meta request
-    let metaRequestUrl = `https://jsr.io/${path}${useUnderscore ? '_' : '/'}meta.json`;
-    const data = await fetch(metaRequestUrl).then(async e => {
+    let metaRequestUrl = `https://jsr.io/${path}${
+      useUnderscore ? "_" : "/"
+    }meta.json`;
+    const data = await fetch(metaRequestUrl).then(async (e) => {
       return await e.json();
-    })
+    });
     if (data.versions) {
       // base meta request
       // get version
       const latest = getSemver(data);
       // new request url with version
-      requestUrl = `https://jsr.io/${pathSegments[0]}/${pathSegments[1]}/${latest}`
+      requestUrl = `https://jsr.io/${pathSegments[0]}/${
+        pathSegments[1]
+      }/${latest}`;
       baseRequestUrl = requestUrl;
 
       if (extraPath) {
@@ -226,12 +240,13 @@ function genericServer(options, bundleOptions) {
       }
 
       // no extra path, then get export for path
-      metaRequestUrl = `https://jsr.io/${pathSegments[0]}/${pathSegments[1]}/${latest}_meta.json`
-      const metadata = await fetch(metaRequestUrl).then(async e => {
+      metaRequestUrl = `https://jsr.io/${pathSegments[0]}/${
+        pathSegments[1]
+      }/${latest}_meta.json`;
+      const metadata = await fetch(metaRequestUrl).then(async (e) => {
         return await e.json();
       });
       addExportToUrl(metadata);
-      
     } else {
       baseRequestUrl = requestUrl;
       // versioned meta request
@@ -251,22 +266,26 @@ function genericServer(options, bundleOptions) {
       let latest = data.latest;
       console.log(latest);
       if (latest === null || latest === "null") {
-        latest = Object.entries(data.versions).filter(e => !e[1].yanked)[0][0];
+        latest = Object.entries(data.versions).filter((e) =>
+          !e[1].yanked
+        )[0][0];
       }
       return latest;
     }
 
     /**
-     * Get export from 
-     * @param {any} data 
+     * Get export from
+     * @param {any} data
      */
     function addExportToUrl(data) {
       /** @type {string | undefined} */
-      const exportName = extraPath ? data.exports[extraPath] : data.exports["."];
+      const exportName = extraPath
+        ? data.exports[extraPath]
+        : data.exports["."];
       if (!exportName) {
         throw new Error("JSR File not found");
       } else {
-        requestUrl += exportName.replace('.', '');
+        requestUrl += exportName.replace(".", "");
       }
     }
 
@@ -276,7 +295,7 @@ function genericServer(options, bundleOptions) {
      * @param {string} baseUrl The base url to use as reference for imports
      */
     async function fetchFinalCode(url, baseUrl) {
-      const code = await devBundleCode(url, {url: baseUrl });
+      const code = await devBundleCode(url, { url: baseUrl });
       res.setHeader("Content-Type", "application/javascript");
       res.send(code);
     }
@@ -307,29 +326,28 @@ function genericServer(options, bundleOptions) {
 
   app.use(express.static(options.dir));
 
-  app.get('*', (_req, res) => {
-    res.status(500).send('Something broke!')
-  })
+  app.get("*", (_req, res) => {
+    res.status(500).send("Something broke!");
+  });
 
   app.use((err, _req, res, _next) => {
-    console.error(err.stack)
-    res.status(500).send('Something broke!')
-  })
+    console.error(err.stack);
+    res.status(500).send("Something broke!");
+  });
 
   return app;
 }
 
-
 /**
  * Creates error in opinionated way
- * @param {Object} options 
+ * @param {Object} options
  * @param {number} [options.status]
  * @param {string} [options.message]
  * @param {string} [options.name]
  * @returns {Error}
  */
 function createError(
-  options
+  options,
 ) {
   return new ServerError(
     options.status ?? 500,
@@ -347,9 +365,9 @@ class ServerError extends Error {
 
   /**
    * Constructor for a server error
-   * @param {number} status 
-   * @param {string} message 
-   * @param {string} [name] 
+   * @param {number} status
+   * @param {string} message
+   * @param {string} [name]
    */
   constructor(
     status,

@@ -82,7 +82,9 @@ class DenoResolver implements Resolver, PlatformResolver {
     this.code = this.code.replaceAll(
       /from\s+['"]npm:([^'"]+)['"]/g,
       (match, p1): string => {
-        const url = `${this.url ? (this.url + '/npm') : "https://esm.sh"}/${p1}`;
+        const url = `${
+          this.url ? (this.url + "/npm") : "https://esm.sh"
+        }/${p1}`;
         return match.includes("from '") ? `from '${url}'` : `from "${url}"`;
       },
     );
@@ -94,7 +96,9 @@ class DenoResolver implements Resolver, PlatformResolver {
       /["']jsr:@([^/]+)\/([^@/";\n]+)(?:@([^/;\n]+))?(?:\/([^\n]+))?["']/g,
       (match, scope, name, version: string = "", path = ""): string => {
         console.log("CASE: ", match, "->", scope, name, version, path, "\n");
-        let url = `${this.url ? (this.url + '/jsr') : "https://jsr.io"}/@${scope}/${name}`;
+        let url = `${
+          this.url ? (this.url + "/jsr") : "https://jsr.io"
+        }/@${scope}/${name}`;
         if (version !== "") {
           url += `/${version.replace("@", "")}`;
           if (path !== "") {
