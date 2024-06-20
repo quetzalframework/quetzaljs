@@ -2,15 +2,14 @@ import { BundleOptions } from "./types/BundleOptions.ts";
 import isDeno from "./global/isDeno.js";
 import { PlatformError } from "./errors/PlatformError.ts";
 import { join } from "node:path";
-import { devTranspile, devTranspileCode } from "./bundle.ts";
+import { devBundleCode, devTranspile } from "./bundle.ts";
 
 // @deno-types="npm:@types/express"
 import express from "npm:express";
 import { ServerOptions } from "./types/ServeOptions.ts";
-import { ArrayUtils } from "https://deno.land/x/ts_morph@20.0.0/common/ts_morph_common.js";
-import e from "npm:@types/express@4.17.15";
+import core from "npm:@types/express@4.17.15";
 
-export function serve(options: ServerOptions, bundleOptions?: BundleOptions) {
+export function serve(options: ServerOptions, bundleOptions?: BundleOptions): express.Express | QServer {
   if (options.deno && options.deno.useDeno) {
     if (isDeno) {
       // use server with deno options
@@ -24,7 +23,13 @@ export function serve(options: ServerOptions, bundleOptions?: BundleOptions) {
   }
 }
 
-function denoServer(options: ServerOptions, bundleOptions?: BundleOptions) {
+type QServer = {
+  listen: (port: number, onListen?: () => void, onAbort?: () => void) => {
+    close: (onEnd: () => void) => any;
+  };
+};
+
+function denoServer(options: ServerOptions, bundleOptions?: BundleOptions): QServer {
   const handler = async (req: Request): Promise<Response> => {
     console.log(req.url, req.headers, await req.text());
     const url = new URL(req.url);
@@ -81,19 +86,26 @@ function denoServer(options: ServerOptions, bundleOptions?: BundleOptions) {
       port: number,
       onListen?: () => void,
       onAbort?: () => void,
-    ): void => {
+    ): {
+      close: (onEnd: () => void) => void 
+    } => {
       const server = Deno.serve(
         { port, hostname: options.host, onListen },
         handler,
       );
       server.finished.then(onAbort);
+      return {
+        close: (onEnd) => {
+          server.shutdown();
+          onEnd();
+        } 
+      }
     },
   };
 }
 
-function genericServer(options: ServerOptions, bundleOptions?: BundleOptions) {
-  const app = express();
-  const port = 3000;
+function genericServer(options: ServerOptions, bundleOptions?: BundleOptions): core.Express {
+  const app: core.Express = express();
 
   app.set("view engine", "ejs");
 
@@ -103,35 +115,14 @@ function genericServer(options: ServerOptions, bundleOptions?: BundleOptions) {
   // error handling
 
   // transpiling
-  app.get('/', (req, res) => {
+  // deno-lint-ignore no-explicit-any
+  app.get('/', (_req: any, res: any) => {
     res.setHeader("Content-Type", "text/html");
     res.send(Deno.readTextFileSync(join(options.dir, "index.html")))
   });
-  // deno-lint-ignore no-explicit-any
-  app.get(/\.(ts|jsx|tsx)$/, async (req: any, res: any) => {
-    const filePath = join(options.dir, req.path);
-    try {
-      const code = await devTranspile(
-        bundleOptions ?? {
-          entry: filePath,
-          mode: "development",
-        },
-      );
-      res.setHeader("Content-Type", "application/javascript");
-      res.send(
-        code,
-      );
-    } catch (error) {
-      console.error("Error transpiling TypeScript file:", error);
-      throw createError({
-        status: 500,
-        message: "Error transpiling TypeScript file",
-        name: "Compilation Error",
-      });
-    }
-  });
 
-  app.get('/_dev/packages/jsr/*', async (req, res) => {
+  // deno-lint-ignore no-explicit-any
+  app.get('/_dev/packages/jsr/*', async (req: any, res: any) => {
     // get extra path segments
 
     const semverRegex = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
@@ -148,18 +139,21 @@ function genericServer(options: ServerOptions, bundleOptions?: BundleOptions) {
     // path already complete then fetch and send
     if (pathSegments.length >= 4) {
       if (semverRegex.test(pathSegments[2])) {
+        await fetchFinalCode(requestUrl, `https://jsr.io/${pathSegments[0]}/${pathSegments[1]}/${pathSegments[2]}`);
       } else {
-        
+        const baseTempRequestUrl = `https://jsr.io/${pathSegments[0]}/${pathSegments[1]}`
+        const tempMetaRequestUrl = baseTempRequestUrl + "/meta.json";
+        const latest = getSemver(await fetch(tempMetaRequestUrl).then(async e => await e.json()));
+        const tempRequestUrl = baseTempRequestUrl + `/${latest}/${pathSegments.slice(2).join('/')}`;
+        await fetchFinalCode(tempRequestUrl, baseTempRequestUrl);
       }
-      const data = await fetch(requestUrl).then(async e => await e.text());
-      res.setHeader("Content-Type", "application/javascript");
-      res.send(data);
+      console.log("Bypassed");
+      
       return;
     }
 
     if (pathSegments.length > 2) {
       // handle version and path
-      const regex = /^[0-9]/;
       
       if (semverRegex.test(pathSegments[2])) {
         // version present
@@ -183,11 +177,7 @@ function genericServer(options: ServerOptions, bundleOptions?: BundleOptions) {
     if (data.versions) {
       // base meta request
       // get version
-      let latest = data.latest;
-      console.log(latest);
-      if (latest === null || latest === "null") {
-        latest = Object.entries(data.versions).filter(e => !e[1].yanked)[0][0];
-      }
+      let latest = getSemver(data);
       // new request url with version
       requestUrl = `https://jsr.io/${pathSegments[0]}/${pathSegments[1]}/${latest}`
       baseRequestUrl = requestUrl;
@@ -220,7 +210,16 @@ function genericServer(options: ServerOptions, bundleOptions?: BundleOptions) {
     await fetchFinalCode(requestUrl, baseRequestUrl);
     return;
 
-    function addExportToUrl(data?: any) {
+    function getSemver(data: any): string {
+      let latest = data.latest;
+      console.log(latest);
+      if (latest === null || latest === "null") {
+        latest = Object.entries(data.versions).filter(e => !(e[1] as any).yanked)[0][0];
+      }
+      return latest;
+    }
+
+    function addExportToUrl(data: any) {
       const exportName: string | undefined = extraPath ? data.exports[extraPath] : data.exports["."];
       if (!exportName) {
         throw new Error("JSR File not found");
@@ -230,8 +229,7 @@ function genericServer(options: ServerOptions, bundleOptions?: BundleOptions) {
     }
 
     async function fetchFinalCode(url: string, baseUrl: string) {
-      const finalData = await fetch(url).then(async (e) => await e.text());
-      const code = await devTranspileCode(
+      const code = await devBundleCode(
         bundleOptions ?? {
           entry: url,
           mode: "development",
@@ -244,11 +242,40 @@ function genericServer(options: ServerOptions, bundleOptions?: BundleOptions) {
     }
   });
 
-  // app.get('/_dev/packages/*', (req, res) => {
-  //   res.send("surprise")
-  // })
+  // deno-lint-ignore no-explicit-any
+  app.get(/\.(ts|jsx|tsx)$/, async (req: any, res: any) => {
+    const filePath = join(options.dir, req.path);
+    try {
+      const code = await devTranspile(
+        bundleOptions ?? {
+          entry: filePath,
+          mode: "development",
+        },
+      );
+      res.setHeader("Content-Type", "application/javascript");
+      res.send(
+        code,
+      );
+    } catch (error) {
+      console.error("Error transpiling TypeScript file:", error);
+      throw createError({
+        status: 500,
+        message: "Error transpiling TypeScript file",
+        name: "Compilation Error",
+      });
+    }
+  });
 
   app.use(express.static(options.dir));
+
+  app.get('*', (req, res) => {
+    res.status(500).send('Something broke!')
+  })
+
+  app.use((err, req, res, next) => {
+    console.error(err.stack)
+    res.status(500).send('Something broke!')
+  })
 
   return app;
 }

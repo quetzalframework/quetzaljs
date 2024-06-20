@@ -75,10 +75,9 @@ export async function devTranspileCode(
     url: string
   }
 ): Promise<string> {
-  // if (options.deno && options.deno.useDeno) {
     if (!entry) throw new Error("Entry must be specified when running this");
     console.log("Deno used:", entry);
-    const { code: result } = await denoBundle(entry, {
+    const code = await denoTranspile(entry, {
       importMap: {
         baseUrl: '.',
         imports: {
@@ -86,19 +85,33 @@ export async function devTranspileCode(
         }
       }
     });
-    return Resolver.resolve(result, {
+    return Resolver.resolve(Array.from(code.values())[0], {
       url: '/_dev/packages',
       deno: true
     });
-  // } else {
-  //   console.log("SWC Used:", entry);
-  //   // invoke swc compiler
-  //   options.swcOptions = { ...options.swcOptions, ...swcOptions(options) };
-  //   const output = code ? await swc.transform(code, options.swcOptions) : await swc.transform(await fetch(entry!).then(async e => await e.text()), options.swcOptions);
-  //   return Resolver.resolve(output.code, {
-  //     url: tcOptions?.url ?? '/_dev/packages',
-  //   });
-  // }
+}
+
+export async function devBundleCode(
+  options: BundleOptions,
+  entry: string,
+  tcOptions: {
+    url: string
+  }
+): Promise<string> {
+  if (!entry) throw new Error("Entry must be specified when running this");
+  console.log("Deno used:", entry);
+  const code = await denoBundle(entry, {
+    importMap: {
+      baseUrl: '.',
+      imports: {
+        '.': tcOptions.url
+      }
+    }
+  });
+  return Resolver.resolve(code.code, {
+    url: '/_dev/packages',
+    deno: true
+  });
 }
 
 async function prodBundle(options: BundleOptions) {
