@@ -1,6 +1,6 @@
 {
-    "imports": {
-        "@quetzal/quetzal": "../packages/quetzaljs",
-        "@quetzal/cli": "../packages/quetzal-cli"
-    }
+  "imports": {
+    "@quetzal/quetzal": "../packages/quetzaljs",
+    "@quetzal/cli": "../packages/quetzal-cli"
+  }
 }
