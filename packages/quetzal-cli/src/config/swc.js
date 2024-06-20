@@ -1,3 +1,6 @@
+/** The SWC Configuration for Quetzal
+ * @type {(options: import("../types/BundleOptions.ts").BundleOptions) => import("npm:@swc/types").Options} 
+ */
 export default (options) => {
   return {
     jsc: {

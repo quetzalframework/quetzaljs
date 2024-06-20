@@ -16,8 +16,9 @@ import {
   bundle as denoBundle,
   transpile as denoTranspile,
 } from "jsr:@deno/emit";
+import { Resolver } from "./resolver.ts";
 
-import { BundleOptions } from "./types/options.ts";
+import { BundleOptions } from "./types/BundleOptions.ts";
 
 export async function bundle(options: BundleOptions) {
   if (options.mode === "development") {
@@ -47,20 +48,57 @@ async function devBundle(options: BundleOptions): Promise<string> {
 
 export async function devTranspile(
   options: BundleOptions,
-): Promise<string | Map<string, string>> {
+): Promise<string> {
   if (options.deno && options.deno.useDeno) {
     console.log("Deno used:", options.entry);
-    const code = await denoTranspile(
-      await readFileSync(options.entry, { encoding: "utf8" }),
-    );
-    return code;
+    const code = await denoTranspile(options.entry);
+    return Resolver.resolve(Array.from(code.values())[0], {
+      url: '/_dev/packages',
+      deno: true
+    });
   } else {
     console.log("SWC Used:", options.entry);
     // invoke swc compiler
     options.swcOptions = { ...options.swcOptions, ...swcOptions(options) };
-    const output = await swc.transformFile(options.entry, options.swcOptions);
+    const source = Resolver.resolve(Deno.readTextFileSync(options.entry), {
+      url: '/_dev/packages',
+    });
+    const output = await swc.transform(source, options.swcOptions);
     return output.code;
   }
+}
+
+export async function devTranspileCode(
+  options: BundleOptions,
+  entry: string,
+  tcOptions: {
+    url: string
+  }
+): Promise<string> {
+  // if (options.deno && options.deno.useDeno) {
+    if (!entry) throw new Error("Entry must be specified when running this");
+    console.log("Deno used:", entry);
+    const { code: result } = await denoBundle(entry, {
+      importMap: {
+        baseUrl: '.',
+        imports: {
+          '.': tcOptions.url
+        }
+      }
+    });
+    return Resolver.resolve(result, {
+      url: '/_dev/packages',
+      deno: true
+    });
+  // } else {
+  //   console.log("SWC Used:", entry);
+  //   // invoke swc compiler
+  //   options.swcOptions = { ...options.swcOptions, ...swcOptions(options) };
+  //   const output = code ? await swc.transform(code, options.swcOptions) : await swc.transform(await fetch(entry!).then(async e => await e.text()), options.swcOptions);
+  //   return Resolver.resolve(output.code, {
+  //     url: tcOptions?.url ?? '/_dev/packages',
+  //   });
+  // }
 }
 
 async function prodBundle(options: BundleOptions) {

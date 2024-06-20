@@ -10,6 +10,6 @@ export interface BundleOptions {
   jsx?: boolean;
   deno?: {
     useDeno: boolean | undefined;
-    denoOptions: DenoBundleOptions | undefined;
+    denoOptions?: DenoBundleOptions | undefined;
   };
 }
