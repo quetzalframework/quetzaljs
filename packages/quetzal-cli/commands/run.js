@@ -1,15 +1,15 @@
+/**
+ * @typedef {import("../deps.ts").QuetzalConfig} QuetzalConfig
+ */
+
 import { Command } from "https://deno.land/x/cliffy@v1.0.0-rc.4/command/mod.ts";
 
-import { BundleOptions } from "../src/types/BundleOptions.ts";
-import { ServerOptions } from "../src/types/ServeOptions.ts";
-import { serve } from "../src/serve.ts";
-import isDeno from "../src/global/isDeno.js";
-import { generateConfig, getConfiguration } from "../src/cli_funcs/getConfiguration.ts";
+import { serve } from "../src/serve.js";
+import { generateConfig } from "../src/cli_funcs/getConfiguration.ts";
 import { createBundleOptions } from "../src/cli_funcs/createBundleOptions.ts";
 import { createServerOptions } from "../src/cli_funcs/createDevServerOptions.ts";
 import { getEntryFile } from "../src/cli_funcs/getEntryFile.ts";
-import { loadConfig, watchConfig } from "npm:c12";
-import { QuetzalConfig } from "../deps.ts";
+import { watchConfig } from "npm:c12";
 
 export const run = new Command()
   .arguments("[directory]")
@@ -17,31 +17,38 @@ export const run = new Command()
     await runCommand(options, args);
   });
 
-async function runCommand(options: any, args: Array<string | undefined>) {
+/**
+ * The Run Command
+ * @param options 
+ * @param {Array<string | undefined>} args
+ */
+async function runCommand(options, args) {
   // get cwd
   const cwd = Deno.cwd();
 
   // load quetzal config
   let appConfig;
-  let devServer: any;
-  const config = await watchConfig<QuetzalConfig>({
+  let devServer;
+
+  // watch config for changes
+  const config = await watchConfig({
     name: "quetzal",
     defaultConfig: generateConfig(options, args, cwd),
     cwd,
     onWatch: (event) => {
       console.log("[watcher]", event.type, event.path);
     },
-    acceptHMR({ oldConfig, newConfig, getDiff }) {
+    acceptHMR({ _oldConfig, _newConfig, getDiff }) {
       const diff = getDiff();
       if (diff.length === 0) {
         console.log("No config changed detected!");
         return true; // No changes!
       }
     },
-    onUpdate({ oldConfig, newConfig, getDiff }) {
+    onUpdate({ _oldConfig, newConfig, getDiff }) {
       const diff = getDiff();
       appConfig = newConfig.config ?? generateConfig(options, args, cwd);
-      console.log("Config updated:\n" + diff.map((i: any) => i.toJSON()).join("\n"));
+      console.log("Config updated:\n" + diff.map(i => i.toJSON()).join("\n"));
 
       devServer.close(function () {
         console.log("Reloading Server....")
@@ -56,20 +63,24 @@ async function runCommand(options: any, args: Array<string | undefined>) {
 
   // get entry file
   devServer = createDevServer(cwd, appConfig);
-
 }
 
-function createDevServer(cwd: string, appConfig: QuetzalConfig) {
+/**
+ * Creates the dev server for the Quetzal Application
+ * @param {string} cwd The current working directory
+ * @param {QuetzalConfig} appConfig The app configuration
+ */
+function createDevServer(cwd, appConfig) {
   const entry = getEntryFile(cwd, appConfig);
 
   // create configurations
-  const bundleOptions: BundleOptions = createBundleOptions(
+  const bundleOptions = createBundleOptions(
     appConfig,
     entry,
     true
   );
 
-  const serveOptions: ServerOptions = createServerOptions(appConfig, cwd);
+  const serveOptions = createServerOptions(appConfig, cwd);
 
   // serve project
   const server = serve(serveOptions, bundleOptions);

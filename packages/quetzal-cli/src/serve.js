@@ -1,4 +1,10 @@
-import { BundleOptions } from "./types/BundleOptions.ts";
+/**
+ * @typedef {import("./types/BundleOptions.ts").BundleOptions} BundleOptions
+ * @typedef {import("./types/ServeOptions.ts").ServerOptions} ServerOptions
+ * @typedef {import("./types/Server.ts").QServer} QServer
+ */
+
+
 import isDeno from "./global/isDeno.js";
 import { PlatformError } from "./errors/PlatformError.ts";
 import { join } from "node:path";
@@ -6,35 +12,52 @@ import { devBundleCode, devTranspile } from "./bundle.ts";
 
 // @deno-types="npm:@types/express"
 import express from "npm:express";
-import { ServerOptions } from "./types/ServeOptions.ts";
-import core from "npm:@types/express@4.17.15";
 
-export function serve(options: ServerOptions, bundleOptions?: BundleOptions): express.Express | QServer {
+/**
+ * Creates a server for the given Quetzal Application
+ * 
+ * Depending on whether the settings have been configured for Deno or 
+ * @param {ServerOptions} options The Server Options to configure the server with
+ * @param {BundleOptions} [bundleOptions] Optional Bundle Options to configure bundling and transpilation of the application and its dependencies
+ * @returns {import("npm:@types/express").Express | QServer} The built server
+ */
+export function serve(options, bundleOptions) {
   if (options.deno && options.deno.useDeno) {
     if (isDeno) {
-      // use server with deno options
+      /**
+       * use server with deno options
+       * @type {import("npm:@types/express").Express}
+       */
       return denoServer(options, bundleOptions);
     } else {
       throw new PlatformError("deno");
     }
   } else {
-    // use express server
+    /**
+     * use express server
+     * @type {QServer}
+     */
     return genericServer(options, bundleOptions);
   }
 }
 
-type QServer = {
-  listen: (port: number, onListen?: () => void, onAbort?: () => void) => {
-    close: (onEnd: () => void) => any;
-  };
-};
-
-function denoServer(options: ServerOptions, bundleOptions?: BundleOptions): QServer {
-  const handler = async (req: Request): Promise<Response> => {
-    console.log(req.url, req.headers, await req.text());
+/**
+ * Initialises a server using the Deno API
+ * @param {ServerOptions} options The server options used to configure this server
+ * @param {BundleOptions} [bundleOptions] The optional bundle options to configure bundling and transpilation of the application and its dependencies
+ * @returns {QServer} A Server object with Express-compatible API
+ */
+function denoServer(options, bundleOptions) {
+  /** @type {(req: Request) => Promise<Response>} */
+  const handler = async (req) => {
+    // get pathname
     const url = new URL(req.url);
     const pathname = url.pathname;
-    const filePath: string = join(options.dir, pathname);
+
+    /** Get file path @type {string} */
+    const filePath = join(options.dir, pathname);
+
+    // configure bundle options
     bundleOptions = bundleOptions
       ? {
         ...bundleOptions,
@@ -49,6 +72,7 @@ function denoServer(options: ServerOptions, bundleOptions?: BundleOptions): QSer
       };
     try {
       if (pathname === "/") {
+        // return index
         return new Response(
           Deno.readTextFileSync(join(filePath, "index.html")),
           {
@@ -58,6 +82,7 @@ function denoServer(options: ServerOptions, bundleOptions?: BundleOptions): QSer
           },
         );
       }
+      // transpile code 
       const code = await devTranspile(
         bundleOptions ?? {
           entry: filePath,
@@ -73,7 +98,10 @@ function denoServer(options: ServerOptions, bundleOptions?: BundleOptions): QSer
         },
       );
     } catch (error) {
+      // console error
       console.error("Error transpiling TypeScript file:", error);
+
+      // TODO: Render error page
       throw createError({
         status: 500,
         message: "Error transpiling TypeScript file",
@@ -83,12 +111,10 @@ function denoServer(options: ServerOptions, bundleOptions?: BundleOptions): QSer
   };
   return {
     listen: (
-      port: number,
-      onListen?: () => void,
-      onAbort?: () => void,
-    ): {
-      close: (onEnd: () => void) => void 
-    } => {
+      port,
+      onListen,
+      onAbort,
+    ) => {
       const server = Deno.serve(
         { port, hostname: options.host, onListen },
         handler,
@@ -104,34 +130,40 @@ function denoServer(options: ServerOptions, bundleOptions?: BundleOptions): QSer
   };
 }
 
-function genericServer(options: ServerOptions, bundleOptions?: BundleOptions): core.Express {
-  const app: core.Express = express();
+/**
+ * Initialises a server using the Express API
+ * @param {ServerOptions} options The server options used to configure this server
+ * @param {BundleOptions} [bundleOptions] The optional bundle options to configure bundling and transpilation of the application and its dependencies
+ * @returns {import("npm:@types/express").Express} An Express Server Object
+ */
+function genericServer(options, bundleOptions) {
+  /** The base express application @type {import("npm:@types/express").Express} */
+  const app = express();
 
   app.set("view engine", "ejs");
 
   // Middleware to parse JSON bodies
   app.use(express.json());
-  
-  // error handling
 
-  // transpiling
-  // deno-lint-ignore no-explicit-any
-  app.get('/', (_req: any, res: any) => {
+  // index html file
+  app.get('/', (_req, res) => {
     res.setHeader("Content-Type", "text/html");
     res.send(Deno.readTextFileSync(join(options.dir, "index.html")))
   });
 
-  // deno-lint-ignore no-explicit-any
-  app.get('/_dev/packages/jsr/*', async (req: any, res: any) => {
-    // get extra path segments
-
+  // jsr package serving/configuration
+  app.get('/_dev/packages/jsr/*', async (req, res) => {
+    // semver regex
     const semverRegex = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
 
-    let path: string = req.params[0];
-    console.log(path);
+    /** Get the path segments @type {string} */
+    let path = req.params[0];
     const pathSegments = path.split("/");
-    let extraPath: string | undefined;
+
+    /** Any extra paths parsed @type {string | undefined} */
+    let extraPath;
     let useUnderscore = false;
+    /** Base url for the `fetchFinalCode` function @type {string} */
     let baseRequestUrl;
 
     let requestUrl = `https://jsr.io/${path}`
@@ -177,7 +209,7 @@ function genericServer(options: ServerOptions, bundleOptions?: BundleOptions): c
     if (data.versions) {
       // base meta request
       // get version
-      let latest = getSemver(data);
+      const latest = getSemver(data);
       // new request url with version
       requestUrl = `https://jsr.io/${pathSegments[0]}/${pathSegments[1]}/${latest}`
       baseRequestUrl = requestUrl;
@@ -210,17 +242,27 @@ function genericServer(options: ServerOptions, bundleOptions?: BundleOptions): c
     await fetchFinalCode(requestUrl, baseRequestUrl);
     return;
 
-    function getSemver(data: any): string {
+    /**
+     * Get Semver Version from Fetched JSON Object
+     * @param {any} data The object
+     * @returns {string} The semver version
+     */
+    function getSemver(data) {
       let latest = data.latest;
       console.log(latest);
       if (latest === null || latest === "null") {
-        latest = Object.entries(data.versions).filter(e => !(e[1] as any).yanked)[0][0];
+        latest = Object.entries(data.versions).filter(e => !e[1].yanked)[0][0];
       }
       return latest;
     }
 
-    function addExportToUrl(data: any) {
-      const exportName: string | undefined = extraPath ? data.exports[extraPath] : data.exports["."];
+    /**
+     * Get export from 
+     * @param {any} data 
+     */
+    function addExportToUrl(data) {
+      /** @type {string | undefined} */
+      const exportName = extraPath ? data.exports[extraPath] : data.exports["."];
       if (!exportName) {
         throw new Error("JSR File not found");
       } else {
@@ -228,22 +270,19 @@ function genericServer(options: ServerOptions, bundleOptions?: BundleOptions): c
       }
     }
 
-    async function fetchFinalCode(url: string, baseUrl: string) {
-      const code = await devBundleCode(
-        bundleOptions ?? {
-          entry: url,
-          mode: "development",
-        }, url, {
-        url: baseUrl
-      }
-      );
+    /**
+     * Fetch final code, bundle and send to server
+     * @param {string} url The url to fetch the code to transpile/bundle
+     * @param {string} baseUrl The base url to use as reference for imports
+     */
+    async function fetchFinalCode(url, baseUrl) {
+      const code = await devBundleCode(url, {url: baseUrl });
       res.setHeader("Content-Type", "application/javascript");
       res.send(code);
     }
   });
 
-  // deno-lint-ignore no-explicit-any
-  app.get(/\.(ts|jsx|tsx)$/, async (req: any, res: any) => {
+  app.get(/\.(ts|jsx|tsx)$/, async (req, res) => {
     const filePath = join(options.dir, req.path);
     try {
       const code = await devTranspile(
@@ -268,11 +307,11 @@ function genericServer(options: ServerOptions, bundleOptions?: BundleOptions): c
 
   app.use(express.static(options.dir));
 
-  app.get('*', (req, res) => {
+  app.get('*', (_req, res) => {
     res.status(500).send('Something broke!')
   })
 
-  app.use((err, req, res, next) => {
+  app.use((err, _req, res, _next) => {
     console.error(err.stack)
     res.status(500).send('Something broke!')
   })
@@ -281,10 +320,17 @@ function genericServer(options: ServerOptions, bundleOptions?: BundleOptions): c
 }
 
 
-
+/**
+ * Creates error in opinionated way
+ * @param {Object} options 
+ * @param {number} [options.status]
+ * @param {string} [options.message]
+ * @param {string} [options.name]
+ * @returns {Error}
+ */
 function createError(
-  options: { status?: number; message?: string; name?: string },
-): Error {
+  options
+) {
   return new ServerError(
     options.status ?? 500,
     options.message ?? "An unknown error has occured",
@@ -292,13 +338,23 @@ function createError(
   );
 }
 
+/**
+ * Server Error class
+ */
 class ServerError extends Error {
-  status: number;
+  /** @type {number} */
+  status;
 
+  /**
+   * Constructor for a server error
+   * @param {number} status 
+   * @param {string} message 
+   * @param {string} [name] 
+   */
   constructor(
-    status: number,
-    message: string,
-    name?: string,
+    status,
+    message,
+    name,
   ) {
     super(message);
     this.status = status;
