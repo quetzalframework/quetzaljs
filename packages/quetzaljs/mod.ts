@@ -1,3 +1,1 @@
-export type {
-    QuetzalConfig
-} from "./src/schema/config.ts"
+export type { QuetzalConfig } from "./src/schema/config.ts";
