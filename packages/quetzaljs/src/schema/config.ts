@@ -29,6 +29,9 @@ export interface QuetzalConfig extends UserInputConfig {
     host?: string;
   };
 
+  denoFile?: string;
+  swcFile?: string;
+
   denoOptions?: object;
   swcOptions?: object;
   rollupOptions?: object;
