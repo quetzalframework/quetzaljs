@@ -1,4 +1,9 @@
 {
+  "workspace": [
+    "packages/quetzaljs",
+    "packages/quetzal-core",
+    "packages/quetzal-types"
+  ],
   "tasks": {
     "cli": "deno run -A ./packages/quetzal-cli/main.ts"
   },
